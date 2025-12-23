@@ -8,9 +8,9 @@ export function middleware(request: NextRequest) {
     const {pathname} = request.nextUrl;
 
     // If the user is not logged in and trying to access a protected route
-    if (!token && (pathname.startsWith('/profile') || pathname === '/')) {
+    if (!token && (pathname.startsWith('/profile') || pathname === '/' || pathname.startsWith('/central') || pathname.startsWith('/verifyemail') || pathname.startsWith('/forgotpassword') || pathname.startsWith('/resetemail') || pathname.startsWith('/paymoney')   )) {
         const url = request.nextUrl.clone();
-        url.pathname = '/signup';
+        url.pathname = '/login';
         return NextResponse.redirect(url);
     }
 
@@ -25,12 +25,16 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: [
-        '/',
-        '/profile',
-        '/profile/:path*',
-        '/login',
-        '/signup',
-        '/verifyemail',
-    ],
-};  
+  matcher: [
+    '/',
+    '/profile',
+    '/profile/:path*',
+    '/login',
+    '/signup',
+    '/verifyemail',
+    '/central',
+    '/forgotpassword',
+    '/resetemail',   // add /
+    '/paymoney/:path*', // add / and :path* if it has an id
+  ],
+};

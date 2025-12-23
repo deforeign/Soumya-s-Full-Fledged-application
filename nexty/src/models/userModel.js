@@ -42,6 +42,11 @@ const userSchema = new mongoose.Schema({
     Cibil: {
         type: Number,
         default: 0,
+    },
+    upi: {
+        type: String,
+        default: "",
+
     }
 }, { timestamps: true
 

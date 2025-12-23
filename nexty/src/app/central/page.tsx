@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
 type UserAmount = {
+  id: string;
   username: string;
   amount: number;
 };
@@ -12,12 +13,17 @@ type UserAmount = {
 export default function LoanversePoolPage() {
   const router = useRouter();
 
-  const [myAmount, setMyAmount] = useState<string>(""); // input value
+  const [myAmount, setMyAmount] = useState<string>("");
   const [amountLoading, setAmountLoading] = useState(false);
   const [userAmounts, setUserAmounts] = useState<UserAmount[]>([]);
   const [currentUsername, setCurrentUsername] = useState<string>("");
   const [cibilScore, setCibilScore] = useState(0);
-  const [myTotalAmount, setMyTotalAmount] = useState(0); // total already requested by this user
+  const [Upi, setUpi] = useState("");
+  const [Id, setId] = useState("");
+  const [myTotalAmount, setMyTotalAmount] = useState(0);
+
+  // NEW: loading state for current user
+  const [userLoading, setUserLoading] = useState(true);
 
   const getAmounts = async () => {
     try {
@@ -33,8 +39,9 @@ export default function LoanversePoolPage() {
       const data = await res.json();
 
       const mapped: UserAmount[] = data.users.map((u: any) => ({
+        id: u._id,
         username: u.username,
-        amount: u.Amount, // capital A to match your model field
+        amount: u.Amount,
       }));
 
       setUserAmounts(mapped);
@@ -47,13 +54,18 @@ export default function LoanversePoolPage() {
     try {
       const res = await fetch("/api/users/me");
       if (!res.ok) return;
+
       const data = await res.json();
 
       setCurrentUsername(data.user.username);
-      setCibilScore(data.user.Cibil); // assumes `Cibil` field on user
-      setMyTotalAmount(data.user.Amount ?? 0); // assumes `Amount` is total user-requested amount
+      setCibilScore(data.user.Cibil);
+      setMyTotalAmount(data.user.Amount ?? 0);
+      setUpi(data.user.upi ?? "");
+      setId(String(data.user._id));
     } catch (err) {
       console.log("Error fetching current user");
+    } finally {
+      setUserLoading(false);
     }
   };
 
@@ -66,24 +78,20 @@ export default function LoanversePoolPage() {
     if (cibilScore === 0) return 0;
     if (cibilScore > 0 && cibilScore < 500) return 50000;
     if (cibilScore >= 500 && cibilScore < 900) return 500000;
-    // if you want: scores >= 900 can have same 5L or more, adjust here
     return 500000;
   };
 
   const handlePostAmount = async () => {
     const amountNumber = Number(myAmount);
-
     if (!amountNumber) return;
 
     const maxAllowed = computeMaxAllowed();
 
-    // If CIBIL is 0, user cannot request any amount
     if (maxAllowed === 0) {
       toast.error("Your CIBIL score is 0, so you cannot request any amount.");
       return;
     }
 
-    // Check total (existing + new) against max
     const newTotal = myTotalAmount + amountNumber;
     if (newTotal > maxAllowed) {
       toast.error(
@@ -103,7 +111,7 @@ export default function LoanversePoolPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: userData.user._id,
-          amount: amountNumber,
+          amount: newTotal,
         }),
       });
 
@@ -112,18 +120,25 @@ export default function LoanversePoolPage() {
       if (res.ok) {
         toast.success("Amount posted successfully.");
 
-        // Update my total in state
         const updatedTotal = myTotalAmount + amountNumber;
         setMyTotalAmount(updatedTotal);
 
-        // Update central list locally for this user
         setUserAmounts((prev) => {
           const exists = prev.some((u) => u.username === currentUsername);
           if (!exists) {
-            return [...prev, { username: currentUsername, amount: updatedTotal }];
+            return [
+              ...prev,
+              {
+                username: currentUsername,
+                amount: updatedTotal,
+                id: Id,
+              },
+            ];
           }
           return prev.map((u) =>
-            u.username === currentUsername ? { ...u, amount: updatedTotal } : u
+            u.username === currentUsername
+              ? { ...u, amount: updatedTotal }
+              : u
           );
         });
 
@@ -139,123 +154,144 @@ export default function LoanversePoolPage() {
   };
 
   const maxAllowed = computeMaxAllowed();
+  const disablePost =
+    amountLoading ||
+    !Number(myAmount) ||
+    cibilScore === 0 ||
+    maxAllowed === 0 ||
+    Upi.length === 0;
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-emerald-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
       {/* Big welcome centered at top */}
-      <div className="absolute top-21 left-0 w-full flex justify-center">
+      <div className="absolute top-30 left-0 w-full flex justify-center">
         <h1 className="text-4xl md:text-5xl font-black text-emerald-100 drop-shadow-lg text-center">
           Welcome back{currentUsername ? `, ${currentUsername}` : ""}!
         </h1>
       </div>
 
-      {/* Profile + Logout buttons */}
-      <button
-        className="absolute top-6 right-30 px-4 py-1.5 rounded-full text-xs font-semibold border border-emerald-300/70 text-emerald-50 bg-white/10 backdrop-blur-sm hover:bg-white/20 hover:text-emerald-50 transition-colors duration-300"
-        onClick={() => {
-          router.push("/profile");
-        }}
-      >
-        Profile
-      </button>
-      <button
-        className="absolute top-6 right-8 px-4 py-1.5 rounded-full text-xs font-semibold border border-emerald-300/70 text-emerald-50 bg-white/10 backdrop-blur-sm hover:bg-white/20 hover:text-emerald-50 transition-colors duration-300"
-        onClick={async () => {
-          await fetch("/api/users/logout", { method: "GET" });
-          router.push("/login");
-        }}
-      >
-        Logout
-      </button>
-
-      {/* CENTER CARD */}
-      <div className="w-full max-w-xl mt-20 backdrop-blur-xl bg-white/5 border border-white/20 rounded-3xl p-8 shadow-2xl">
-        {/* Subheading under big welcome */}
-        <p className="text-sm text-gray-300 mb-2">
-          Loanverse Pool – live total of all requested amounts by users.
-        </p>
-        <p className="text-xs text-emerald-100 mb-2">
-          Your CIBIL score:{" "}
-          <span className="font-semibold">{cibilScore}</span>
-          {maxAllowed === 0 && " – you cannot request any amount."}
-          {maxAllowed === 50000 && " – you can request up to ₹50,000 in total."}
-          {maxAllowed === 500000 &&
-            " – you can request up to ₹5,00,000 in total."}
-        </p>
-        <p className="text-xs text-emerald-100 mb-6">
-          Your total requested amount so far:{" "}
-          <span className="font-semibold">₹ {myTotalAmount.toLocaleString()}</span>
-        </p>
-
-        {/* List of usernames + amounts */}
-        <div className="mb-8">
-          <p className="text-gray-400 text-sm mb-2">
-            List of amounts requested
+      {/* MAIN CONTENT: show loader until user is fetched */}
+      {userLoading ? (
+        <div className="w-full max-w-xl mt-45 flex items-center justify-center text-emerald-100">
+          Loading your data...
+        </div>
+      ) : (
+        <div className="w-full max-w-xl mt-45 backdrop-blur-xl bg-white/5 border border-white/20 rounded-3xl p-8 shadow-2xl">
+          <p className="text-4xl text-emerald-100 drop-shadow-lg mb-7 text-center font-black">
+            Loanverse
           </p>
 
-          <div className="space-y-2 max-h-60 overflow-y-auto text-sm text-emerald-100">
-            {userAmounts.length === 0 ? (
-              <p className="text-gray-400 text-xs">No requests yet.</p>
-            ) : (
-              userAmounts
-                .filter((ua) => ua.amount !== 0)
-                .map((ua) => (
-                  <p
-                    key={ua.username}
-                    className="bg-white/5 border border-emerald-400/20 rounded-xl px-4 py-2"
-                  >
-                    User{" "}
-                    <span className="text-emerald-300">{ua.username}</span> has
-                    requested amount{" "}
-                    <span className="text-emerald-300">
-                      ₹ {ua.amount.toLocaleString()}
-                    </span>
-                  </p>
-                ))
-            )}
+          <p className="text-sm text-emerald-100 mb-2">
+            Your CIBIL score:{" "}
+            <span className="font-semibold">{cibilScore}</span>
+            {maxAllowed === 0 && " – you cannot request any amount."}
+            {maxAllowed === 50000 &&
+              " – you can request up to ₹50,000 in total."}
+            {maxAllowed === 500000 &&
+              " – you can request up to ₹5,00,000 in total."}
+          </p>
+
+          <p className="text-sm text-emerald-100 mb-2">
+            Your total requested amount so far:{" "}
+            <span className="font-semibold">
+              ₹ {myTotalAmount.toLocaleString()}
+            </span>
+          </p>
+
+          {cibilScore === 0 && (
+            <p className="text-sm text-red-300 mb-2">
+              To request an amount, please fill your CIBIL score in your
+              profile.
+            </p>
+          )}
+
+          {Upi.length === 0 && (
+            <p className="text-sm text-red-300 mb-2">
+              To request an amount, please add your UPI ID in your profile.
+            </p>
+          )}
+
+          {/* List of usernames + amounts */}
+          <div className="mb-8">
+            <p className="text-gray-400 text-m mb-2">
+              List of amounts requested
+            </p>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto text-sm text-emerald-100">
+              {userAmounts.length === 0 ? (
+                <p className="text-gray-400 text-xs">No requests yet.</p>
+              ) : (
+                userAmounts
+                  .filter((ua) => ua.amount !== 0)
+                  .map((ua) => (
+                    <div
+                      key={ua.username}
+                      className="relative bg-white/5 border border-emerald-400/20 rounded-xl px-4 py-2 flex items-center justify-between"
+                    >
+                      <span>
+                        User{" "}
+                        <span className="text-emerald-300">
+                          {ua.username}
+                        </span>{" "}
+                        has requested amount{" "}
+                        <span className="text-emerald-300">
+                          ₹ {ua.amount.toLocaleString()}
+                        </span>
+                      </span>
+                      {String(ua.id) !== Id ? (
+                        <button
+                          className="px-4 py-0.5 rounded-full text-xs font-semibold border border-emerald-300/70 text-emerald-50 bg-white/10 backdrop-blur-sm hover:bg-white/20 hover:text-emerald-50 transition-colors duration-300"
+                          onClick={() => {
+                            router.push(`/paymoney/${String(ua.id)}`);
+                          }}
+                        >
+                          PAY
+                        </button>
+                      ) : (
+                        <div />
+                      )}
+                    </div>
+                  ))
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Input to post amount */}
-        <div className="space-y-3">
-          <label className="block text-sm font-semibold text-emerald-100/90">
-            Your required amount
-          </label>
-          <input
-            type="number"
-            min={0}
-            className="w-full px-4 py-3 bg-white/10 border border-emerald-500/30 rounded-2xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500/50 transition-all duration-300 backdrop-blur-sm hover:border-emerald-400/50"
-            placeholder="Enter amount in ₹"
-            value={myAmount}
-            onChange={(e) => {
-              const raw = e.target.value;
-              const normalized = raw.replace(/^0+(\d)/, "$1");
-              setMyAmount(normalized);
-            }}
-          />
-          <button
-            type="button"
-            onClick={handlePostAmount}
-            disabled={
-              amountLoading || !Number(myAmount) || cibilScore === 0 || maxAllowed === 0
-            }
-            className={`w-full py-3 rounded-2xl font-semibold text-sm transition-all duration-300 ${
-              amountLoading ||
-              !Number(myAmount) ||
-              cibilScore === 0 ||
-              maxAllowed === 0
-                ? "bg-gray-700/50 text-gray-400 cursor-not-allowed"
-                : "bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg"
-            }`}
-          >
-            {amountLoading ? "Posting..." : "Post amount to pool"}
-          </button>
-        </div>
+          {/* Input to post amount */}
+          <div className="space-y-3">
+            <label className="block text-sm font-semibold text-emerald-100/90">
+              Your required amount
+            </label>
+            <input
+              type="number"
+              min={0}
+              className="w-full px-4 py-3 bg-white/10 border border-emerald-500/30 rounded-2xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500/50 transition-all duration-300 backdrop-blur-sm hover:border-emerald-400/50"
+              placeholder="Enter amount in ₹"
+              value={myAmount}
+              onChange={(e) => {
+                const raw = e.target.value;
+                const normalized = raw.replace(/^0+(\d)/, "$1");
+                setMyAmount(normalized);
+              }}
+            />
+            <button
+              type="button"
+              onClick={handlePostAmount}
+              disabled={disablePost}
+              className={`w-full py-3 rounded-2xl font-semibold text-sm transition-all duration-300 ${
+                disablePost
+                  ? "bg-gray-700/50 text-gray-400 cursor-not-allowed"
+                  : "bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-lg"
+              }`}
+            >
+              {amountLoading ? "Posting..." : "Post amount to pool"}
+            </button>
+          </div>
 
-        <p className="mt-8 text-xs text-gray-400 text-center">
-          This pool helps lenders see total demand in Loanverse in real time.
-        </p>
-      </div>
+          <p className="mt-8 text-xs text-gray-400 text-center">
+            This pool helps lenders see total demand in Loanverse in real time.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
