@@ -6,7 +6,7 @@ await connect();
 
 export async function GET(request: NextRequest) {
     try {
-        const users = await User.find({}, '_id username Amount'); // Fetch only username and Amount fields
+        const users = await User.find({}, '_id username Amount paid'); // Fetch only username and Amount fields
 
         return NextResponse.json(
             { users },

@@ -14,6 +14,7 @@ export default function PayMoneyPage() {
   const [senderUpi, setSenderUpi] = useState("");
   const [receiverUpi, setReceiverUpi] = useState("");
   const [amount, setAmount] = useState<string>("");
+  const [receiverId, setReceiverId] = useState("")
 
   const [showSuccess, setShowSuccess] = useState(false);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
@@ -30,6 +31,7 @@ export default function PayMoneyPage() {
     const dataRecv = await resRecv.json();
     setReceiverName(dataRecv.user.username);
     setReceiverUpi(dataRecv.user.upi);
+
     const amtNumber = Number(dataRecv.user.Amount ?? 0);
     setAmount(amtNumber.toLocaleString("en-IN"));
 
@@ -37,6 +39,7 @@ export default function PayMoneyPage() {
     const dataSend = await resSend.json();
     setSenderName(dataSend.user.username);
     setSenderUpi(dataSend.user.upi);
+    setReceiverId(dataSend.user._id);
   };
 
   useEffect(() => {
@@ -49,11 +52,34 @@ export default function PayMoneyPage() {
     }
   }, []);
 
-  const handlePayClick = () => {
-    // call your payment logic here if needed, then:
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 2500);
+  const handlePayClick = async () => {
+    try {
+      const response = await fetch('/api/users/pay', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          senderId: receiverId,
+          receiverId: id,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Payment failed');
+
+      setShowSuccess(true);
+      
+      // Wait for animation to complete, THEN redirect
+      setTimeout(() => {
+        setShowSuccess(false);
+        router.push('/central');
+      }, 2500);
+      
+    } catch (error) {
+      console.error('Payment error:', error);
+    }
   };
+
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-emerald-900 via-blue-900 to-indigo-900 flex items-center justify-center px-4 py-10">
@@ -67,25 +93,6 @@ export default function PayMoneyPage() {
           recycle={false}
         />
       )}
-
-      {/* Top buttons */}
-      {/* <button
-        className="absolute top-6 right-30 px-4 py-1.5 rounded-full text-xs font-semibold border border-emerald-300/70 text-emerald-50 bg-white/10 backdrop-blur-sm hover:bg-white/20 hover:text-emerald-50 transition-colors duration-300"
-        onClick={() => {
-          router.push("/profile");
-        }}
-      >
-        Profile
-      </button>
-      <button
-        className="absolute top-6 right-7 px-4 py-1.5 rounded-full text-xs font-semibold border border-emerald-300/70 text-emerald-50 bg-white/10 backdrop-blur-sm hover:bg-white/20 hover:text-emerald-50 transition-colors duration-300"
-        onClick={() => {
-          router.push("/central");
-        }}
-      >
-        Home
-      </button> */}
-
       {/* Card */}
       <div className="w-full max-w-2xl rounded-3xl border border-white/15 bg-white/10 backdrop-blur-2xl shadow-2xl px-8 py-10">
         <h1 className="text-4xl md:text-5xl font-extrabold text-emerald-50 text-center drop-shadow mb-2">

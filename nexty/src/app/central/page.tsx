@@ -20,9 +20,10 @@ export default function LoanversePoolPage() {
   const [cibilScore, setCibilScore] = useState(0);
   const [Upi, setUpi] = useState("");
   const [Id, setId] = useState("");
+  const [paid, setPaid] = useState<boolean>(false);
+  const [sender, setSender] = useState("");
   const [myTotalAmount, setMyTotalAmount] = useState(0);
 
-  // NEW: loading state for current user
   const [userLoading, setUserLoading] = useState(true);
 
   const getAmounts = async () => {
@@ -37,12 +38,16 @@ export default function LoanversePoolPage() {
       }
 
       const data = await res.json();
+      console.log("TOTALAMOUNTS users:", data.users);
 
-      const mapped: UserAmount[] = data.users.map((u: any) => ({
-        id: u._id,
-        username: u.username,
-        amount: u.Amount,
-      }));
+      const mapped: UserAmount[] = data.users
+        // keep only unpaid users; handle old string "False" if present
+        .filter((u: any) => u.paid === false || u.paid === "False")
+        .map((u: any) => ({
+          id: u._id,
+          username: u.username,
+          amount: u.Amount,
+        }));
 
       setUserAmounts(mapped);
     } catch (error: any) {
@@ -62,6 +67,13 @@ export default function LoanversePoolPage() {
       setMyTotalAmount(data.user.Amount ?? 0);
       setUpi(data.user.upi ?? "");
       setId(String(data.user._id));
+
+      const paidValue = Boolean(data.user.paid);
+      setPaid(paidValue);
+
+      if (paidValue) {
+        setSender(data.user.sender);
+      }
     } catch (err) {
       console.log("Error fetching current user");
     } finally {
@@ -154,12 +166,14 @@ export default function LoanversePoolPage() {
   };
 
   const maxAllowed = computeMaxAllowed();
+  // Updated disable condition to include paid check
   const disablePost =
     amountLoading ||
     !Number(myAmount) ||
     cibilScore === 0 ||
     maxAllowed === 0 ||
-    Upi.length === 0;
+    Upi.length === 0 ||
+    paid; // Disable if already paid
 
   return (
     <div className="relative min-h-screen bg-gradient-to-br from-emerald-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
@@ -198,14 +212,22 @@ export default function LoanversePoolPage() {
             </span>
           </p>
 
-          {cibilScore === 0 && (
+          {/* NEW: Paid warning message */}
+          {paid && (
+            <p className="text-sm text-red-300 mb-2 bg-red-500/10 border border-red-400/30 rounded-xl p-3">
+              You can only ask for money once you have repaid the previously 
+              asked amount. Please complete your repayment first.
+            </p>
+          )}
+
+          {cibilScore === 0 && !paid && (
             <p className="text-sm text-red-300 mb-2">
               To request an amount, please fill your CIBIL score in your
               profile.
             </p>
           )}
 
-          {Upi.length === 0 && (
+          {Upi.length === 0 && !paid && (
             <p className="text-sm text-red-300 mb-2">
               To request an amount, please add your UPI ID in your profile.
             </p>
@@ -225,7 +247,7 @@ export default function LoanversePoolPage() {
                   .filter((ua) => ua.amount !== 0)
                   .map((ua) => (
                     <div
-                      key={ua.username}
+                      key={ua.id}
                       className="relative bg-white/5 border border-emerald-400/20 rounded-xl px-4 py-2 flex items-center justify-between"
                     >
                       <span>
@@ -272,6 +294,7 @@ export default function LoanversePoolPage() {
                 const normalized = raw.replace(/^0+(\d)/, "$1");
                 setMyAmount(normalized);
               }}
+              disabled={paid} // Also disable input when paid
             />
             <button
               type="button"

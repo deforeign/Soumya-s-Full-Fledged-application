@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "react-hot-toast";
 import { AppShell } from "@/components/AppLayout";
 
 const geistSans = Geist({
@@ -25,7 +24,6 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <AppShell>
-        <Toaster />
         {children}
       </AppShell>
     </html>

@@ -10,12 +10,6 @@ export async function POST(request: NextRequest) {
     try {
         const {id} = await request.json();
 
-        if (!id) {
-            return NextResponse.json(
-                {message: "Unauthorized"},
-                {status: 401}
-            );
-        }
         console.log(id);
 
         const user = await User.findById(id).select("-password");

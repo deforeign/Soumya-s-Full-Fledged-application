@@ -47,7 +47,20 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: "",
 
-    }
+    },
+    paid :{
+        type: Boolean,
+        default: false,
+    },
+    sender: {
+        type: String,
+        default: "",
+    },
+     paymentTime: {
+        type: Date,      
+        required: false, 
+        default: null,
+    },
 }, { timestamps: true
 
 })

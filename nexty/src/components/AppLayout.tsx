@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import Navbar from "@/components/Navbar";
 
-const HIDE_NAV_ROUTES = ["/login", "/signup"];
+const HIDE_NAV_ROUTES = ["/login", "/signup", "/verifyemail", "/resetemail","/forgotpassword"];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
